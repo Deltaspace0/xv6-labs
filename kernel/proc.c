@@ -89,6 +89,61 @@ myproc(void)
   return p;
 }
 
+uint64*
+trapframe_to_s(struct trapframe* tf, int register_num)
+{
+  switch (register_num)
+  {
+    case 2: return &(tf->s2);
+    case 3: return &(tf->s3);
+    case 4: return &(tf->s4);
+    case 5: return &(tf->s5);
+    case 6: return &(tf->s6);
+    case 7: return &(tf->s7);
+    case 8: return &(tf->s8);
+    case 9: return &(tf->s9);
+    case 10: return &(tf->s10);
+    case 11: return &(tf->s11);
+  }
+  return 0;
+}
+
+int
+dump(void)
+{
+  struct proc *p = myproc();
+  struct trapframe *tf = p->trapframe;
+  for (int i = 2; i < 12; i++) {
+    printf("s%d = %d\n", i, *(trapframe_to_s(tf, i)));
+  }
+  return 0;
+}
+
+int
+dump2(int pid, int register_num, uint64 *return_value)
+{
+  struct proc* p = myproc();
+  if (register_num < 2 || register_num > 11) {
+    return -3;
+  }
+  for (struct proc* ptr = proc; ptr < &proc[NCPU]; ptr++) {
+    acquire(&proc->lock);
+    if (ptr->pid != pid) {
+      release(&proc->lock);
+      continue;
+    }
+    if (ptr->pid != p->pid && ptr->parent->pid != p->pid) {
+      release(&proc->lock);
+      return -1;
+    }
+    uint64* regp = trapframe_to_s(ptr->trapframe, register_num);
+    int failed = copyout(p->pagetable, (uint64)return_value, (char*)regp, 8);
+    release(&proc->lock);
+    return (failed ? -4 : 0);
+  }
+  return -2;
+}
+
 int
 allocpid()
 {
